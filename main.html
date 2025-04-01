@@ -1,0 +1,794 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cyberpunk Infinite Data Flow</title>
+  <style>
+    /* --------------------------------------------------------
+       1) BASIC PAGE & BODY STYLING
+    -------------------------------------------------------- */
+    * {
+      margin: 0; 
+      padding: 0; 
+      box-sizing: border-box;
+    }
+    body {
+      overflow: hidden;
+      background-color: #000;
+      font-family: 'Orbitron', sans-serif;
+      perspective: 1000px;  /* 3D perspective on the body */
+      height: 100vh;
+      cursor: grab;
+    }
+    body:active {
+      cursor: grabbing;
+    }
+
+    /* --------------------------------------------------------
+       2) MAIN CONTAINER (100% width/height)
+    -------------------------------------------------------- */
+    #container {
+      position: relative;
+      width: 100%;
+      height: 100vh;
+      overflow: hidden;
+    }
+
+    /* --------------------------------------------------------
+       3) THE “SCENE” – OUR 3D REFERENCE FRAME
+          (0,0,0) = EXACT HEXAGON CORE
+    -------------------------------------------------------- */
+    #scene {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      transform-style: preserve-3d;
+    }
+
+    /* --------------------------------------------------------
+       4) THE CENTER OBJECT (HEXA CORE) – AT (0,0,0)
+    -------------------------------------------------------- */
+    #center-object {
+      position: absolute;
+      width: 300px;
+      height: 300px;
+      transform: translate3d(-150px, -150px, 0);
+      animation: pulse 4s infinite alternate;
+      transform-style: preserve-3d;
+    }
+    .hexagon {
+      position: absolute;
+      width: 100%;
+      height: 100%;
+      background: conic-gradient(
+        from 0deg,
+        rgba(0, 80, 255, 0.2),
+        rgba(0, 180, 255, 0.5),
+        rgba(0, 80, 255, 0.2)
+      );
+      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 
+                         50% 100%, 0% 75%, 0% 25%);
+      animation: rotate 20s linear infinite;
+    }
+    .hexagon-inner {
+      position: absolute;
+      width: 80%;
+      height: 80%;
+      top: 10%;
+      left: 10%;
+      background: conic-gradient(
+        from 180deg,
+        rgba(0, 80, 255, 0.2),
+        rgba(0, 180, 255, 0.5),
+        rgba(0, 80, 255, 0.2)
+      );
+      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 
+                         50% 100%, 0% 75%, 0% 25%);
+      animation: rotate 15s linear infinite reverse;
+    }
+    .hexagon-core {
+      position: absolute;
+      width: 60%;
+      height: 60%;
+      top: 20%;
+      left: 20%;
+      background: rgba(0, 40, 80, 0.8);
+      clip-path: polygon(50% 0%, 100% 25%, 100% 75%, 
+                         50% 100%, 0% 75%, 0% 25%);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #0ff;
+      font-size: 24px;
+      text-shadow: 0 0 10px #0ff;
+    }
+
+    @keyframes pulse {
+      0% {
+        box-shadow: 0 0 20px rgba(0, 100, 255, 0.5),
+                    0 0 40px rgba(0, 100, 255, 0.3);
+      }
+      100% {
+        box-shadow: 0 0 40px rgba(0, 100, 255, 0.8),
+                    0 0 80px rgba(0, 100, 255, 0.5);
+      }
+    }
+    @keyframes rotate {
+      0% { transform: rotate(0deg);   }
+      100%{ transform: rotate(360deg);}
+    }
+
+    /* --------------------------------------------------------
+       5) COORDINATE SYSTEM – (0,0,0) = SAME AS HEX CORE
+    -------------------------------------------------------- */
+    #coordinate-system {
+      position: absolute;
+      transform: translate3d(0, 0, 0);
+      transform-style: preserve-3d;
+      pointer-events: none;
+      display: none;
+      z-index: 1000;
+    }
+    .origin-point {
+      position: absolute;
+      width: 10px; 
+      height: 10px;
+      background-color: white;
+      border-radius: 50%;
+      box-shadow: 0 0 15px white;
+      transform: translate3d(-5px, -5px, 0);
+      z-index: 1001;
+    }
+    .axis {
+      position: absolute;
+      transform-origin: 0 0;
+      box-shadow: 0 0 10px rgba(255,255,255,0.8);
+    }
+    /* X-axis (horizontal, red=>white) */
+    .axis-x {
+      width: 10000px;
+      height: 1px;
+      transform: translate3d(-5000px, 0, 0);
+      background: linear-gradient(to right, 
+        rgba(255, 0, 0, 0.8), 
+        rgba(255,255,255,0.8)
+      );
+    }
+    /* Y-axis (front/back, green=>white) */
+    .axis-y {
+      width: 10000px;
+      height: 1px;
+      transform: rotateY(90deg) translate3d(-5000px, 0, 0);
+      background: linear-gradient(to right, 
+        rgba(0,255,0,0.8), 
+        rgba(255,255,255,0.8)
+      );
+    }
+    /* Z-axis (vertical, blue=>white) */
+    .axis-z {
+      width: 1px;
+      height: 10000px;
+      transform: translate3d(0, -5000px, 0);
+      background: linear-gradient(to bottom,
+        rgba(50,50,255,0.8),
+        rgba(255,255,255,0.8)
+      );
+    }
+
+    .grid-line {
+      position: absolute;
+      background-color: rgba(255,255,255,0.2);
+      box-shadow: 0 0 5px rgba(255,255,255,0.1);
+      transform-style: preserve-3d;
+    }
+
+    /* --------------------------------------------------------
+       6) DATA TEXT BOXES – Now centered on their coordinate
+    -------------------------------------------------------- */
+    .text-element {
+      position: absolute;
+      padding: 12px;
+      background-color: rgba(0, 20, 40, 0.9);
+      color: #0ff;
+      border: 1px solid #0ff;
+      box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+      border-radius: 4px;
+      font-size: 12px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      transform-style: preserve-3d;
+      backdrop-filter: blur(3px);
+      width: 180px;
+      transition: transform 0.5s ease-out, opacity 0.5s ease-out;
+      overflow: hidden;
+    }
+    .text-element::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 2px;
+      background: linear-gradient(90deg, transparent, #0ff, transparent);
+      animation: scanLine 2s linear infinite;
+    }
+    .text-element::after {
+      content: '';
+      position: absolute;
+      bottom: 0;
+      right: 0;
+      width: 10px;
+      height: 10px;
+      border-right: 2px solid #0ff;
+      border-bottom: 2px solid #0ff;
+      opacity: 0.7;
+    }
+    @keyframes scanLine {
+      0%   { left: -100%; }
+      100% { left: 100%;  }
+    }
+
+    /* --------------------------------------------------------
+       7) CLUSTER COLORS
+    -------------------------------------------------------- */
+    .cluster-1 {
+      border-color: #0ff;
+      box-shadow: 0 0 15px rgba(0, 255, 255, 0.5);
+    }
+    .cluster-2 {
+      border-color: #ff0;
+      box-shadow: 0 0 15px rgba(255, 255, 0, 0.5);
+    }
+    .cluster-3 {
+      border-color: #f0f;
+      box-shadow: 0 0 15px rgba(255, 0, 255, 0.5);
+    }
+
+    /* --------------------------------------------------------
+       8) HUD OVERLAYS
+    -------------------------------------------------------- */
+    #hud-overlay {
+      position: fixed;
+      top: 20px;
+      left: 20px;
+      color: #0ff;
+      font-size: 14px;
+      text-shadow: 0 0 5px #0ff;
+      z-index: 100;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .hud-line {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .hud-icon {
+      width: 12px;
+      height: 12px;
+      background-color: #0ff;
+      box-shadow: 0 0 5px #0ff;
+    }
+    .data-bar {
+      height: 4px;
+      background: rgba(0, 255, 255, 0.3);
+      width: 200px;
+      position: relative;
+      overflow: hidden;
+    }
+    .data-bar::after {
+      content: '';
+      position: absolute;
+      top: 0; 
+      left: 0;
+      height: 100%; 
+      width: 50%;
+      background: linear-gradient(90deg, transparent, #0ff, transparent);
+      animation: dataFlow 2s linear infinite;
+    }
+    @keyframes dataFlow {
+      0%   { transform: translateX(-100%); }
+      100% { transform: translateX(200%);  }
+    }
+
+    #hud-bottom {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      color: #0ff;
+      font-size: 14px;
+      text-shadow: 0 0 5px #0ff;
+      z-index: 100;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 8px;
+    }
+    /* Use a monospaced font for consistent digit widths */
+    #camera-info {
+      font-family: 'Courier New', monospace;
+    }
+
+    /* --------------------------------------------------------
+       9) CYBER BUTTONS
+    -------------------------------------------------------- */
+    .left-bottom-buttons {
+      position: fixed;
+      bottom: 20px;
+      left: 20px;
+      z-index: 100;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .cyber-button {
+      padding: 8px 15px;
+      background: rgba(0, 20, 40, 0.7);
+      border: 1px solid #0ff;
+      color: #0ff;
+      font-family: 'Orbitron', sans-serif;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.3s;
+      position: relative;
+      overflow: hidden;
+    }
+    .cyber-button:hover {
+      background: rgba(0, 255, 255, 0.2);
+      box-shadow: 0 0 10px #0ff;
+    }
+    .cyber-button::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(0, 255, 255, 0.4), transparent);
+      transition: all 0.5s;
+    }
+    .cyber-button:hover::before {
+      left: 100%;
+    }
+
+    /* --------------------------------------------------------
+       10) PARTICLES
+    -------------------------------------------------------- */
+    .particle {
+      position: absolute;
+      width: 4px;
+      height: 4px;
+      background-color: #0ff;
+      border-radius: 50%;
+      box-shadow: 0 0 5px #0ff;
+      transform-style: preserve-3d;
+    }
+  </style>
+
+  <!-- Font Awesome & Orbitron -->
+  <link
+    href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0-beta3/css/all.min.css"
+    rel="stylesheet"
+  />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;500;700&display=swap"
+    rel="stylesheet"
+  />
+</head>
+<body>
+  <div id="container">
+    <!-- Our entire 3D scene is centered in the screen -->
+    <div id="scene">
+      <!-- Hexagon core sits exactly at (0,0,0) -->
+      <div id="center-object">
+        <div class="hexagon"></div>
+        <div class="hexagon-inner"></div>
+        <div class="hexagon-core">DATA CORE</div>
+      </div>
+
+      <!-- Coordinate system also pinned at the same origin -->
+      <div id="coordinate-system">
+        <div class="origin-point"></div>
+        <!-- True X-axis (horizontal) -->
+        <div class="axis axis-x"></div>
+        <!-- Y-axis (front/back) -->
+        <div class="axis axis-y"></div>
+        <!-- Z-axis (vertical, up/down) -->
+        <div class="axis axis-z"></div>
+      </div>
+      <!-- 
+        Data text elements & random particles appended here 
+        by JS, also at (0,0,0) reference 
+      -->
+    </div>
+  </div>
+
+  <!-- HUD overlay -->
+  <div id="hud-overlay">
+    <div class="hud-line">
+      <div class="hud-icon"></div>
+      <div>SYSTEM: <span class="glitch-effect">ONLINE</span></div>
+    </div>
+    <div class="hud-line">
+      <div class="hud-icon"></div>
+      <div>DATA FLOW: <span style="color: #0f0">ACTIVE</span></div>
+    </div>
+    <div class="hud-line">
+      <div class="hud-icon"></div>
+      <div>NETWORK: <span style="color: #ff0">SECURE</span></div>
+    </div>
+    <div class="data-bar"></div>
+  </div>
+  
+  <!-- HUD bottom -->
+  <div id="hud-bottom">
+    <div>SCROLL TO NAVIGATE DATA STREAM</div>
+    <!-- Removed the link line here -->
+    <div id="camera-info"></div>
+    <div class="data-bar"></div>
+  </div>
+
+  <!-- Buttons -->
+  <div class="left-bottom-buttons">
+    <button class="cyber-button" id="grid-button">TOGGLE GRID</button>
+    <button class="cyber-button" id="reset-view-button">RESET VIEW</button>
+    <button class="cyber-button" id="spin-button">STOP SPINNING</button>
+  </div>
+
+  <script>
+    document.addEventListener('DOMContentLoaded', () => {
+      const container = document.getElementById('container');
+      const scene = document.getElementById('scene');
+      const coordSystem = document.getElementById('coordinate-system');
+      const gridButton = document.getElementById('grid-button');
+      const resetViewButton = document.getElementById('reset-view-button');
+      const spinButton = document.getElementById('spin-button');
+      const cameraInfo = document.getElementById('camera-info');
+
+      // We want our '0.5' scale to be displayed as '1.0' in the HUD
+      const baseScale = 0.5;
+      let currentScale = baseScale;
+      const minScale = 0.2;
+      const maxScale = 2;
+
+      let rotX = 0;
+      let rotY = 0;
+      let lastX = 0;
+      let lastY = 0;
+      let isMouseDown = false;
+      let autoRotate = true;
+
+      let scrollSpeed = 0;
+      const maxScrollSpeed = 1.5;
+      const friction = 0.95;
+
+      let gridVisible = false;
+      let gridLines = [];
+      let textElements = [];
+
+      // We'll store a "camera offset" that shifts the entire scene,
+      // so the cluster center we want is at the origin.
+      let cameraOffset = { x: 0, y: 0, z: 0 };
+
+      // Sample data
+      const dataPoints = [
+        { text: "test 1", x: 2,   y: 1,   z: 3,   cluster: 1 },
+        { text: "test 2", x: 1.5, y: 0.8, z: 3.8, cluster: 1 },
+        { text: "test 3", x: -4,  y: -5,  z: -4.2,  cluster: 2 },
+        { text: "test 4", x: -4.2,  y: -5.6,  z: -4.5,cluster: 2 },
+        { text: "test 5", x: -2,  y: -2,  z: 1,   cluster: 3 },
+        { text: "test 6", x: -2,  y: -2.5,z: 1.2, cluster: 3 },
+        { text: "test 7", x: -2,  y: -1.8,z: 0.8, cluster: 3 },
+        { text: "test 8", x: 7,   y: 3,   z: -5,  cluster: 4 },
+        { text: "test 9", x: 6,   y: 6,   z: -5,  cluster: 4 }
+      ];
+
+      // Scale factor (px per unit)
+      const coordScale = 200;
+
+      // -------------------------------------------------------
+      // 1) Compute cluster centers
+      // -------------------------------------------------------
+      const clusterMap = {};
+      for (const p of dataPoints) {
+        const c = p.cluster;
+        if (!clusterMap[c]) {
+          clusterMap[c] = { x:0, y:0, z:0, count:0 };
+        }
+        clusterMap[c].x += p.x;
+        clusterMap[c].y += p.y;
+        clusterMap[c].z += p.z;
+        clusterMap[c].count++;
+      }
+      // Sort cluster IDs in ascending order
+      const clusterIDs = Object.keys(clusterMap).map(Number).sort((a,b)=>a-b);
+
+      // Convert cluster sums to average
+      const clusterCenters = clusterIDs.map(c => {
+        const info = clusterMap[c];
+        return {
+          cluster: c,
+          x: info.x / info.count,
+          y: info.y / info.count,
+          z: info.z / info.count
+        };
+      });
+
+      let currentClusterIndex = 0; // which cluster we’ll jump to next
+
+      // -------------------------------------------------------
+      // 2) Convert data coords => scene coords
+      // -------------------------------------------------------
+      function dataToSceneCoords(x, y, z) {
+        // text-element => translate3d(x*scale, -z*scale, -y*scale)
+        const sx = x * coordScale;     // right if +x
+        const sy = -z * coordScale;    // up if +z
+        const sz = -y * coordScale;    // forward if +y
+        return { sx, sy, sz };
+      }
+
+      // -------------------------------------------------------
+      // 3) Move “camera” so cluster center is at the origin
+      //    Then spin automatically.
+      // -------------------------------------------------------
+      function jumpToNextCluster() {
+        // If we still have a cluster left in the cycle...
+        if (currentClusterIndex < clusterCenters.length) {
+          const center = clusterCenters[currentClusterIndex];
+          // Convert cluster center to scene coords
+          const sceneC = dataToSceneCoords(center.x, center.y, center.z);
+          // SHIFT the scene by the negative of that,
+          // so it moves to (0,0,0).
+          cameraOffset.x = -sceneC.sx;
+          cameraOffset.y = -sceneC.sy;
+          cameraOffset.z = -sceneC.sz;
+
+          // Start spinning
+          autoRotate = true;
+          spinButton.textContent = 'STOP SPINNING';
+
+          currentClusterIndex++;
+        } else {
+          // After the last cluster, reset
+          resetView();
+          currentClusterIndex = 0;
+        }
+      }
+
+      // -------------------------------------------------------
+      // Create text elements (centered on their data coordinate)
+      // -------------------------------------------------------
+      function createElements() {
+        // Remove old
+        textElements.forEach(el => {
+          if (el.parentNode) scene.removeChild(el);
+        });
+        textElements = [];
+
+        dataPoints.forEach(point => {
+          const el = document.createElement('div');
+          el.className = `text-element cluster-${point.cluster}`;
+
+          // Convert data coords => scene coords
+          const { sx, sy, sz } = dataToSceneCoords(point.x, point.y, point.z);
+
+          // SHIFT by -50% so the coordinate is the box center
+          el.style.transform = `
+            translate3d(${sx}px, ${sy}px, ${sz}px)
+            translate(-50%, -50%)
+          `;
+
+          el.innerHTML = `
+            <div>${point.text}</div>
+            <div style="font-size: 10px; opacity: 0.7; margin-top: 8px;">
+              (${point.x.toFixed(1)}, ${point.y.toFixed(1)}, ${point.z.toFixed(1)})
+              <span style="float: right;">CLUSTER ${point.cluster}</span>
+            </div>
+          `;
+          scene.appendChild(el);
+          textElements.push(el);
+        });
+      }
+
+      // -------------------------------------------------------
+      // Create random floating particles
+      // -------------------------------------------------------
+      function createParticles() {
+        const numParticles = 100;
+        for (let i = 0; i < numParticles; i++) {
+          const p = document.createElement('div');
+          p.className = 'particle';
+          const x = (Math.random() - 0.5) * 2000;
+          const y = (Math.random() - 0.5) * 2000;
+          const z = (Math.random() - 0.5) * 2000;
+          p.style.transform = `translate3d(${x}px, ${z}px, ${y}px)`;
+          p.style.opacity = (0.3 + Math.random() * 0.7).toString();
+          scene.appendChild(p);
+        }
+      }
+
+      // -------------------------------------------------------
+      // Create grid lines (optional toggle)
+      // -------------------------------------------------------
+      function createGrid() {
+        gridLines.forEach(line => {
+          if (line.parentNode) coordSystem.removeChild(line);
+        });
+        gridLines = [];
+
+        const gridSize = 10;
+        const spacing = coordScale;
+
+        for (let i = -gridSize; i <= gridSize; i++) {
+          if (i === 0) continue; // skip axis
+          
+          // Basic XY plane lines
+          const lineX = document.createElement('div');
+          lineX.className = 'grid-line';
+          lineX.style.width = '10000px';
+          lineX.style.height = '1px';
+          lineX.style.transform = `translate3d(-5000px,0,${i*spacing}px)`;
+          coordSystem.appendChild(lineX);
+          gridLines.push(lineX);
+
+          const lineY = document.createElement('div');
+          lineY.className = 'grid-line';
+          lineY.style.width = '10000px';
+          lineY.style.height = '1px';
+          lineY.style.transform = `rotateY(90deg) translate3d(-5000px,0,${i*spacing}px)`;
+          coordSystem.appendChild(lineY);
+          gridLines.push(lineY);
+
+          // Extend for XZ / YZ planes if desired
+        }
+      }
+
+      // -------------------------------------------------------
+      // Initialize
+      // -------------------------------------------------------
+      function initScene() {
+        createElements();
+        createParticles();
+        createGrid();
+      }
+      initScene();
+
+      // -------------------------------------------------------
+      // Mouse/touch rotation
+      // -------------------------------------------------------
+      function handleMouseDown(e) {
+        isMouseDown = true;
+        autoRotate = false;
+        spinButton.textContent = 'START SPINNING';
+        lastX = e.clientX || e.touches[0].clientX;
+        lastY = e.clientY || e.touches[0].clientY;
+      }
+      function handleMouseMove(e) {
+        if (!isMouseDown) return;
+        const clientX = e.clientX || e.touches[0].clientX;
+        const clientY = e.clientY || e.touches[0].clientY;
+        const dx = clientX - lastX;
+        const dy = clientY - lastY;
+        rotY += dx * 0.005;
+        rotX -= dy * 0.005;
+        // Limit tilt
+        const limit = Math.PI / 3;
+        rotX = Math.max(-limit, Math.min(limit, rotX));
+        lastX = clientX;
+        lastY = clientY;
+      }
+      function handleMouseUp() {
+        isMouseDown = false;
+      }
+
+      container.addEventListener('mousedown', handleMouseDown);
+      container.addEventListener('touchstart', handleMouseDown);
+      window.addEventListener('mousemove', handleMouseMove);
+      window.addEventListener('touchmove', handleMouseMove);
+      window.addEventListener('mouseup', handleMouseUp);
+      window.addEventListener('touchend', handleMouseUp);
+
+      // -------------------------------------------------------
+      // Scroll => zoom
+      // -------------------------------------------------------
+      function handleScroll(e) {
+        e.preventDefault();
+        const delta = Math.sign(e.deltaY);
+        scrollSpeed += delta * 0.1;
+        scrollSpeed = Math.max(-maxScrollSpeed, Math.min(maxScrollSpeed, scrollSpeed));
+        currentScale += delta * -0.05; 
+        currentScale = Math.max(minScale, Math.min(maxScale, currentScale));
+      }
+      container.addEventListener('wheel', handleScroll);
+
+      // -------------------------------------------------------
+      // Buttons
+      // -------------------------------------------------------
+      gridButton.addEventListener('click', () => {
+        gridVisible = !gridVisible;
+        if (gridVisible) {
+          coordSystem.style.display = 'block';
+          gridButton.textContent = 'HIDE GRID';
+          gridButton.style.boxShadow = '0 0 10px #0ff';
+        } else {
+          coordSystem.style.display = 'none';
+          gridButton.textContent = 'SHOW GRID';
+          gridButton.style.boxShadow = 'none';
+        }
+      });
+      resetViewButton.addEventListener('click', () => {
+        resetView();
+      });
+      spinButton.addEventListener('click', () => {
+        autoRotate = !autoRotate;
+        spinButton.textContent = autoRotate ? 'STOP SPINNING' : 'START SPINNING';
+      });
+
+      function resetView() {
+        rotX = 0;
+        rotY = 0;
+        currentScale = baseScale; // back to 0.5
+        cameraOffset.x = 0;
+        cameraOffset.y = 0;
+        cameraOffset.z = 0;
+        autoRotate = true;
+        spinButton.textContent = 'STOP SPINNING';
+      }
+
+      // -------------------------------------------------------
+      // Press SPACE => jump to next cluster center
+      // -------------------------------------------------------
+      window.addEventListener('keydown', (e) => {
+        if (e.code === 'Space') {
+          e.preventDefault();
+          jumpToNextCluster();
+        }
+      });
+
+      // -------------------------------------------------------
+      // Animation Loop
+      // -------------------------------------------------------
+      function animate() {
+        if (autoRotate) {
+          rotY += 0.002;
+        }
+        if (Math.abs(scrollSpeed) > 0.01) {
+          scrollSpeed *= friction;
+        } else {
+          scrollSpeed = 0;
+        }
+
+        // Scene final transform
+        scene.style.transform = `
+          translate(-50%, -50%)
+          translate3d(${cameraOffset.x}px, ${cameraOffset.y}px, ${cameraOffset.z}px)
+          rotateX(${rotX}rad)
+          rotateY(${rotY}rad)
+          scale(${currentScale})
+        `;
+
+        // Convert our 0.5-scale baseline to 1.0 in the display
+        const displayScale = (currentScale / baseScale).toFixed(2);
+
+        // Update camera info with stable-width digits
+        cameraInfo.textContent = 
+          `Offset: (${cameraOffset.x.toFixed(1)}, ${cameraOffset.y.toFixed(1)}, ${cameraOffset.z.toFixed(1)})  |  ` +
+          `Rot: (${(rotX*180/Math.PI).toFixed(1)}, ${(rotY*180/Math.PI).toFixed(1)})°  |  ` +
+          `Scale: ${displayScale}`;
+
+        requestAnimationFrame(animate);
+      }
+      animate();
+    });
+  </script>
+</body>
+</html>
